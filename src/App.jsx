@@ -1,7 +1,7 @@
 import React,{useEffect,useRef,useState,useCallback} from 'react';
 import { Search, Layers3, Plus, Minus, Crosshair, Globe2, Map, Info, X, PanelLeftClose, PanelLeftOpen, Check } from 'lucide-react';
 import {regions,PLANET_RADIUS_KM} from './map/terrain.js';
-import {TileCache,visibleTiles,coordinateAt,metersPerPixel,MAX_ZOOM} from './map/tiles.js';
+import {TileCache,tileImage,visibleTiles,coordinateAt,metersPerPixel,MAX_ZOOM} from './map/tiles.js';
 const LAYERS={graticule:false,labels:true};
 const fmt=(v,positive,negative)=>Math.abs(v).toFixed(2)+'° '+(v>=0?positive:negative);
 export default function App(){
@@ -14,24 +14,38 @@ export default function App(){
  const requestDraw=()=>{if(drawRef.current)cancelAnimationFrame(drawRef.current);drawRef.current=requestAnimationFrame(()=>setTileCount(n=>n+1))};
  useEffect(()=>{if(!stage.current)return;const ob=new ResizeObserver(()=>setSize({w:stage.current.clientWidth,h:stage.current.clientHeight}));ob.observe(stage.current);return()=>ob.disconnect()},[]);
  useEffect(()=>{
-  const w=new Worker(new URL('./map/tile-worker.js',import.meta.url),{type:'module'});
-  worker.current=w;
-  w.onmessage=({data})=>{
-   busy.current=false;
-   pending.current.delete(data.key);
-   if(data.bitmap){cache.current.put(data.key,data.bitmap);requestDraw()}
-   else if(data.error) console.error('M7B3 tile:',data.error);
-   processQueue.current();
+  let w;
+  const handleTile=data=>{
+    busy.current=false;
+    pending.current.delete(data.key);
+    if(data.bitmap){cache.current.put(data.key,data.bitmap);requestDraw()}
+    else if(data.error)console.error('M7B3 tile:',data.error);
+    processQueue.current();
   };
-  return()=>{w.terminate();worker.current=null;queue.current=[];busy.current=false};
+  try{
+    w=new Worker(new URL('./map/tile-worker.js',import.meta.url),{type:'module'});
+    worker.current=w;
+    w.onmessage=({data})=>handleTile(data);
+    w.onerror=e=>{
+      console.error('M7B3 Worker failed, using fallback:',e);
+      w.terminate();worker.current=null;busy.current=false;pending.current.clear();queue.current=[];
+      requestDraw();
+    };
+  }catch(error){console.warn('M7B3 Worker unavailable:',error);worker.current=null}
+  return()=>{w?.terminate();worker.current=null;queue.current=[];busy.current=false};
  },[]);
  const processQueue=useRef(()=>{});
  processQueue.current=()=>{
-  if(busy.current||!worker.current)return;
+  if(busy.current)return;
   const item=queue.current.shift();
   if(!item)return;
   busy.current=true;
-  worker.current.postMessage(item);
+  if(worker.current){worker.current.postMessage(item);return}
+  setTimeout(()=>{
+    try{const canvas=tileImage(item.z,item.x,item.y,{graticule:item.graticule});if(canvas)cache.current.put(item.key,canvas)}
+    catch(e){console.error('M7B3 fallback tile:',e)}
+    busy.current=false;pending.current.delete(item.key);requestDraw();processQueue.current();
+  },0);
  };
  useEffect(()=>{
   const c=canvas.current;if(!c)return;
