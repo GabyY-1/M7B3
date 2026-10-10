@@ -45,7 +45,7 @@ export default function App(){
   const visible=visibleTiles(w,h,camera);
   // Discard no-longer-visible queued requests; completed requests stay cached.
   const keys=new Set(visible.map(t=>t.z+'/'+t.x+'/'+t.y+'/'+Number(layers.graticule)));
-  queue.current=queue.current.filter(t=>keys.has(t.key));
+  queue.current=queue.current.filter(t=>{if(keys.has(t.key))return true;pending.current.delete(t.key);return false});
   for(const t of visible){
    const key=t.z+'/'+t.x+'/'+t.y+'/'+Number(layers.graticule);
    const tile=cache.current.get(key);
