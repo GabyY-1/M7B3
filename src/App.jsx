@@ -1,11 +1,11 @@
 import React,{useEffect,useRef,useState,useCallback} from 'react';
 import { Search, Layers3, Plus, Minus, Crosshair, Globe2, Map, Info, X, PanelLeftClose, PanelLeftOpen, Check } from 'lucide-react';
 import {regions,PLANET_RADIUS_KM} from './map/terrain.js';
-import {TileCache,tileImage,visibleTiles,coordinateAt,metersPerPixel,MAX_ZOOM} from './map/tiles.js';
+import {TileCache,visibleTiles,coordinateAt,metersPerPixel,MAX_ZOOM} from './map/tiles.js';
 const LAYERS={graticule:false,labels:true};
 const fmt=(v,positive,negative)=>Math.abs(v).toFixed(2)+'° '+(v>=0?positive:negative);
 export default function App(){
- const stage=useRef(null),canvas=useRef(null),cache=useRef(new TileCache(110)),pending=useRef(new Set()),drag=useRef(null),drawRef=useRef(null);
+ const stage=useRef(null),canvas=useRef(null),cache=useRef(new TileCache(110)),pending=useRef(new Set()),drag=useRef(null),drawRef=useRef(null),worker=useRef(null),queue=useRef([]),busy=useRef(false);
  const [camera,setCamera]=useState({zoom:1,panX:0,panY:0});
  const [size,setSize]=useState({w:1024,h:600});
  const [layers,setLayers]=useState(LAYERS);
@@ -13,40 +13,57 @@ export default function App(){
  const [cursor,setCursor]=useState({lat:0,lon:0}),[selected,setSelected]=useState(null),[tileCount,setTileCount]=useState(0);
  const requestDraw=()=>{if(drawRef.current)cancelAnimationFrame(drawRef.current);drawRef.current=requestAnimationFrame(()=>setTileCount(n=>n+1))};
  useEffect(()=>{if(!stage.current)return;const ob=new ResizeObserver(()=>setSize({w:stage.current.clientWidth,h:stage.current.clientHeight}));ob.observe(stage.current);return()=>ob.disconnect()},[]);
- useEffect(()=>{cache.current.clear();pending.current.clear();requestDraw()},[layers.graticule]);
  useEffect(()=>{
-  const el=canvas.current;if(!el)return;
-  const pixelRatio=Math.min(devicePixelRatio||1,2),{w,h}=size;
-  el.width=Math.max(1,Math.floor(w*pixelRatio));el.height=Math.max(1,Math.floor(h*pixelRatio));el.style.width=w+'px';el.style.height=h+'px';
-  const ctx=el.getContext('2d');ctx.setTransform(pixelRatio,0,0,pixelRatio,0,0);ctx.fillStyle='#0b324c';ctx.fillRect(0,0,w,h);
-  const items=visibleTiles(w,h,camera);
-  const waiting=[];
-  for(const t of items){
+  const w=new Worker(new URL('./map/tile-worker.js',import.meta.url),{type:'module'});
+  worker.current=w;
+  w.onmessage=({data})=>{
+   busy.current=false;
+   pending.current.delete(data.key);
+   if(data.bitmap){cache.current.put(data.key,data.bitmap);requestDraw()}
+   else if(data.error) console.error('M7B3 tile:',data.error);
+   processQueue.current();
+  };
+  return()=>{w.terminate();worker.current=null;queue.current=[];busy.current=false};
+ },[]);
+ const processQueue=useRef(()=>{});
+ processQueue.current=()=>{
+  if(busy.current||!worker.current)return;
+  const item=queue.current.shift();
+  if(!item)return;
+  busy.current=true;
+  worker.current.postMessage(item);
+ };
+ useEffect(()=>{
+  const c=canvas.current;if(!c)return;
+  const ratio=Math.min(devicePixelRatio||1,2),{w,h}=size;
+  if(c.width!==Math.floor(w*ratio)||c.height!==Math.floor(h*ratio)){
+   c.width=Math.max(1,Math.floor(w*ratio));c.height=Math.max(1,Math.floor(h*ratio));
+   c.style.width=w+'px';c.style.height=h+'px';
+  }
+  const ctx=c.getContext('2d');ctx.setTransform(ratio,0,0,ratio);
+  ctx.fillStyle='#0b324c';ctx.fillRect(0,0,w,h);
+  const visible=visibleTiles(w,h,camera);
+  // Discard no-longer-visible queued requests; completed requests stay cached.
+  const keys=new Set(visible.map(t=>t.z+'/'+t.x+'/'+t.y+'/'+Number(layers.graticule)));
+  queue.current=queue.current.filter(t=>keys.has(t.key));
+  for(const t of visible){
    const key=t.z+'/'+t.x+'/'+t.y+'/'+Number(layers.graticule);
    const tile=cache.current.get(key);
-   if(tile){ctx.drawImage(tile,t.sx,t.sy,t.side+.4,t.side+.4)}
-   else if(!pending.current.has(key)){waiting.push({key,...t});pending.current.add(key)}
+   if(tile){ctx.drawImage(tile,t.sx,t.sy,t.side+.5,t.side+.5)}
+   else if(!pending.current.has(key)){
+    pending.current.add(key);
+    queue.current.push({key,z:t.z,x:t.x,y:t.y,graticule:layers.graticule});
+   }
   }
   if(layers.labels){
    ctx.textAlign='center';ctx.font='700 15px system-ui';ctx.lineWidth=3;ctx.strokeStyle='#10231dbb';ctx.fillStyle='white';
    const worldW=512*2**camera.zoom,worldH=worldW/2,left=(w-worldW)/2+camera.panX,top=(h-worldH)/2+camera.panY;
-   for(const r of regions){let x=left+(r.lon+180)/360*worldW,y=top+(90-r.lat)/180*worldH;
+   for(const r of regions){
+    const x=left+(r.lon+180)/360*worldW,y=top+(90-r.lat)/180*worldH;
     if(x>=0&&x<w&&y>=0&&y<h){ctx.strokeText(r.id,x,y);ctx.fillText(r.id,x,y)}
    }
   }
-  if(waiting.length){
-   // Do one tile per task, so navigation remains responsive.
-   let cancelled=false;let timer;
-   const step=(i)=>{
-    if(cancelled||i>=waiting.length)return;
-    timer=setTimeout(()=>{
-     if(cancelled)return;
-     const t=waiting[i];try{const image=tileImage(t.z,t.x,t.y,{graticule:layers.graticule});if(image)cache.current.put(t.key,image)}catch(e){console.error('Tile generation',e)}
-     pending.current.delete(t.key);requestDraw();step(i+1);
-    },0);
-   };step(0);
-   return()=>{cancelled=true;clearTimeout(timer);for(const t of waiting)pending.current.delete(t.key)};
-  }
+  processQueue.current();
  },[camera,size,layers,tileCount]);
  useEffect(()=>()=>{if(drawRef.current)cancelAnimationFrame(drawRef.current)},[]);
  const zoom=(factor)=>setCamera(v=>({...v,zoom:Math.max(0,Math.min(MAX_ZOOM,v.zoom+factor))}));
