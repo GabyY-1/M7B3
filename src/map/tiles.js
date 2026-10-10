@@ -27,18 +27,27 @@ export function tileImage(z,tx,ty,{graticule=false}={}){
  const canvas=typeof OffscreenCanvas!=='undefined'?new OffscreenCanvas(TILE_SIZE,TILE_SIZE):document.createElement('canvas');canvas.width=TILE_SIZE;canvas.height=TILE_SIZE;
  const ctx=canvas.getContext('2d');const im=ctx.createImageData(TILE_SIZE,TILE_SIZE);
  const level=calibratedSeaLevel();
+ const elevations=new Float32Array(TILE_SIZE*TILE_SIZE);
  for(let py=0;py<TILE_SIZE;py++){
   const v=(ty+(py+.5)/TILE_SIZE)/height;
   const lat=90-v*180;
   for(let px=0;px<TILE_SIZE;px++){
    const lon=-180+((wrapped+(px+.5)/TILE_SIZE)/width)*360;
    const elev=heightRaw(lon,lat)-level;
+   elevations[py*TILE_SIZE+px]=elev;
    const baseDetail=(Math.sin(lon*.46+lat*.2)*Math.cos(lat*.39-lon*.18)+1)*.25;
    const detail=clamp(.34+baseDetail+detailNoise(lon,lat,z),0,1);
    const rgb=colorFor(elev,lat,detail);
    const idx=(py*TILE_SIZE+px)*4;
    im.data[idx]=rgb[0];im.data[idx+1]=rgb[1];im.data[idx+2]=rgb[2];im.data[idx+3]=255;
   }
+ }
+ // Cheap hillshade from local elevation gradients, without more noise samples.
+ for(let y=1;y<TILE_SIZE-1;y++)for(let x=1;x<TILE_SIZE-1;x++){
+  const i=y*TILE_SIZE+x,h=elevations[i];if(h<=0)continue;
+  const dx=elevations[i+1]-elevations[i-1],dy=elevations[i+TILE_SIZE]-elevations[i-TILE_SIZE];
+  const shade=clamp(1+((dx-dy)*1.5),.76,1.25),j=i*4;
+  im.data[j]=clamp(im.data[j]*shade,0,255);im.data[j+1]=clamp(im.data[j+1]*shade,0,255);im.data[j+2]=clamp(im.data[j+2]*shade,0,255);
  }
  ctx.putImageData(im,0,0);
  if(graticule){
@@ -54,8 +63,8 @@ export function tileImage(z,tx,ty,{graticule=false}={}){
 export class TileCache{
  constructor(limit=100){this.limit=limit;this.items=new Map()}
  get(k){const value=this.items.get(k);if(value){this.items.delete(k);this.items.set(k,value)}return value}
- put(k,v){if(this.items.has(k))this.items.delete(k);this.items.set(k,v);while(this.items.size>this.limit)this.items.delete(this.items.keys().next().value)}
- clear(){this.items.clear()}
+ put(k,v){if(this.items.has(k))this.items.delete(k);this.items.set(k,v);while(this.items.size>this.limit){const k=this.items.keys().next().value;const old=this.items.get(k);old?.close?.();this.items.delete(k)}}
+ clear(){for(const v of this.items.values())v?.close?.();this.items.clear()}
 }
 export function metersPerPixel(lat,zoom){
  return (2*Math.PI*PLANET_RADIUS_KM*1000*Math.cos(lat*Math.PI/180))/(512*(2**zoom));
