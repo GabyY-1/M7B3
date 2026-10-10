@@ -1,0 +1,81 @@
+{
+  "id": "M7B3",
+  "status": "worldbuilding",
+  "radius_km": 8500,
+  "diameter_km": 17000,
+  "surface_land_fraction_target": 0.3,
+  "surface_ocean_fraction_target": 0.7,
+  "gravity_m_s2": 9.81,
+  "rotation_hours": 24,
+  "orbital_period_earth_days": 365,
+  "axial_tilt_deg": 13,
+  "star": {
+    "spectral_type": "F9V",
+    "status": "working-hypothesis",
+    "mass_solar": 1.08,
+    "luminosity_solar": 1.2
+  },
+  "moons": [
+    {
+      "id": "M7B3-I",
+      "diameter_km": 2500,
+      "orbital_distance_km": 300000
+    },
+    {
+      "id": "M7B3-II",
+      "diameter_km": 800,
+      "orbital_distance_km": 170000
+    }
+  ],
+  "continents": [
+    {
+      "id": "C1",
+      "target_area_million_km2": 74
+    },
+    {
+      "id": "C2",
+      "target_area_million_km2": 62
+    },
+    {
+      "id": "C3",
+      "target_area_million_km2": 55
+    },
+    {
+      "id": "C4",
+      "target_area_million_km2": 45
+    },
+    {
+      "id": "C5",
+      "target_area_million_km2": 29
+    }
+  ],
+  "islands_target_area_million_km2": 7.4,
+  "oceans": [
+    {
+      "id": "O1",
+      "target_area_million_km2": 160
+    },
+    {
+      "id": "O2",
+      "target_area_million_km2": 133
+    },
+    {
+      "id": "O3",
+      "target_area_million_km2": 112
+    },
+    {
+      "id": "O4",
+      "target_area_million_km2": 96
+    },
+    {
+      "id": "O5",
+      "target_area_million_km2": 76
+    },
+    {
+      "id": "O6",
+      "target_area_million_km2": 58.5
+    }
+  ],
+  "names": "Codes only until user chooses names",
+  "map_render_status": "Procedural draft; exact measured coast polygons pending"
+}
