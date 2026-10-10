@@ -24,7 +24,7 @@ export function tileImage(z,tx,ty,{graticule=false}={}){
  const width=2**(z+1),height=2**z;
  if(ty<0||ty>=height)return null;
  const wrapped=((tx%width)+width)%width;
- const canvas=document.createElement('canvas');canvas.width=TILE_SIZE;canvas.height=TILE_SIZE;
+ const canvas=typeof OffscreenCanvas!=='undefined'?new OffscreenCanvas(TILE_SIZE,TILE_SIZE):document.createElement('canvas');canvas.width=TILE_SIZE;canvas.height=TILE_SIZE;
  const ctx=canvas.getContext('2d');const im=ctx.createImageData(TILE_SIZE,TILE_SIZE);
  const level=calibratedSeaLevel();
  for(let py=0;py<TILE_SIZE;py++){
