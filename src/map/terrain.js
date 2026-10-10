@@ -26,7 +26,7 @@ function fbm(x,y){
   return v;
 }
 const wrap=(lon,center)=>((lon-center+540)%360)-180;
-function heightRaw(lon,lat){
+export function heightRaw(lon,lat){
   const distortX=(fbm(lon*.065+13,lat*.065+31)-.49)*16;
   const distortY=(fbm(lon*.075+61,lat*.075+17)-.49)*15;
   let land=-.36;
@@ -45,7 +45,7 @@ function heightRaw(lon,lat){
 }
 const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
 const mix=(a,b,t)=>a.map((v,i)=>Math.round(v+(b[i]-v)*t));
-function colorFor(h,lat,detail,mode){
+export function colorFor(h,lat,detail,mode){
   const polar=Math.abs(lat);
   const r=detail;
   if(h<=0){
