@@ -5,7 +5,9 @@
 - React / Vite, interface française responsive.
 - Moteur satellite procédural déterministe, sans fonds de carte de la Terre.
 - Tuiles de 256 px, découpées par niveau de zoom entier et agrandies aux niveaux fractionnaires.
-- Génération à la demande des tuiles visibles, avec cache LRU de 110 tuiles.
+- Génération à la demande des tuiles visibles dans un **Web Worker**, hors du fil principal, avec cache LRU de 110 tuiles et libération des bitmaps anciens.
+- File d'attente adaptative : les tâches devenues invisibles pendant les déplacements sont abandonnées.
+- Ombrage léger des reliefs calculé à partir des altitudes locales, sans recalcul supplémentaire du bruit.
 - Niveaux de zoom 0 à 19 (résolution d'affichage théorique seulement).
 - Équivalence longitude/latitude dans une projection équirectangulaire.
 - Calibration approximative du niveau marin sur une grille sphérique pondérée par cos(latitude).
@@ -20,7 +22,8 @@
 - Le réglage du niveau marin est approximatif, il ne garantit pas exactement 70 % des océans, et les masses par continent restent des cibles non vérifiées.
 - Les tuiles raffinées contiennent une texture supplémentaire à haut zoom, **pas** de vrais détails à l'échelle des bâtiments.
 - L'affichage devient plus fin aux niveaux de zoom élevés, mais sa précision géographique effective reste limitée.
-- La génération s'effectue dans le navigateur et peut prendre du temps sur les appareils modestes.
+- La génération s'effectue dans un Worker sur l'appareil : l'interface reste plus réactive, mais les tuiles peuvent toujours mettre du temps à apparaître sur un Chromebook modeste.
+- Le fonctionnement effectif sur Vercel et les performances n'ont pas encore été confirmés par un test navigateur complet.
 - Aucun serveur géospatial, tuilage précalculé, mesure topographique certifiée, réseau hydrographique ou bâtiments à ce stade.
 
 ## À faire pour atteindre une précision comparable à Google Maps
