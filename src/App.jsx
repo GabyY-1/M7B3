@@ -54,7 +54,7 @@ export default function App(){
    c.width=Math.max(1,Math.floor(w*ratio));c.height=Math.max(1,Math.floor(h*ratio));
    c.style.width=w+'px';c.style.height=h+'px';
   }
-  const ctx=c.getContext('2d');ctx.setTransform(ratio,0,0,ratio);
+  const ctx=c.getContext('2d');ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
   ctx.fillStyle='#0b324c';ctx.fillRect(0,0,w,h);
   const visible=visibleTiles(w,h,camera);
   // Discard no-longer-visible queued requests; completed requests stay cached.
